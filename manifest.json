@@ -4,7 +4,7 @@
 	"short_name": "vgmstream-web",
 	"description": "Listen to streamed video game audio files in your browser",
 	"icons": [{
-		"src": "/vgmstream-web/img/apple-touch-icon.png",
+		"src": "/rei/logo.png",
 		"sizes": "180x180",
 		"type": "image/png"
 	}],
