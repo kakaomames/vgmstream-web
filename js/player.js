@@ -782,45 +782,63 @@ selectdirbtn.addEventListener("click", async event => {
 })
 
 download.addEventListener("click", async event => {
-    if(locked){ return }
+    if(locked){
+        return
+    }
     
-    // 1. 全ストリームデータを取得するワーカー関数を呼び出す
-    fade(1, true) // モーダルを表示
+    // 現在再生中のファイル名を取得
+    // on_memory_bank_bundled.ckb のような入力ファイル名です
+    var currentInputFilename = filenamebox.innerText 
+    
+    // ファイルシステムは worker 側で管理されているため、 files 配列全体は不要
+    // convertDir の引数 dir (files) が必要なので、ここはダミーで空配列を渡す
+    var files = [] 
+
+    fade(1, true) // モーダルを表示してロック
     
     try {
-        // vgmstream-webの内部関数を再利用し、全データを取得（仮の関数名: getAllStreams）
-        // ※この部分のコードはcli-worker.jsの内部構造に依存するため、仮です
-        var allStreams = await cliWorker.send("getAllStreams", dlfilename) 
+        // 新しいコマンドを呼び出し、全ストリームの ArrayBuffer の配列を取得
+        // cliWorker.send("extractAllStreams", files, inputFilename)
+        var allStreams = await cliWorker.send("extractAllStreams", files, currentInputFilename)
     } catch (e) {
         fade(0)
         return workerError(e)
     }
 
-    // 2. JSZipのインスタンスを作成
+    // JSZipのインスタンスを作成
     var zip = new JSZip()
     
-    // 3. 全ストリームをZIPに追加
-    allStreams.forEach((streamData, index) => {
-        // streamDataは { name: "se_ui_open", buffer: ArrayBuffer } の形式を想定
-        var filename = streamData.name ? `${streamData.name}.wav` : `stream_${index}.wav`
-        zip.file(filename, streamData.buffer)
+    // 全ストリームをZIPに追加
+    allStreams.forEach(stream => {
+        // stream.name 例: on_memory_bank_bundled#0.wav
+        // stream.buffer は ArrayBuffer
+        zip.file(stream.name, stream.buffer)
     })
     
-    // 4. ZIPファイルを生成
+    // ZIPファイルを非同期で生成
     var content = await zip.generateAsync({ type: "blob" })
     
-    // 5. ダウンロードを実行
+    // ダウンロードを実行
     var link = document.createElement("a")
-    link.href = URL.createObjectURL(content)
-    link.download = filenamebox.innerText.replace(/\./g, '_') + ".zip" // ファイル名例: on_memory_bank_bundled.zip
+    // ファイル名から拡張子を削除して .zip を付与
+    var zipFilename = currentInputFilename.replace(/\.[^/.]+$/, "") + ".zip" 
     
-    // ... (ダウンロードの実行とクリーンアップ)
+    link.href = URL.createObjectURL(content)
+    link.download = zipFilename
+    
+    // ダウンロードのトリガーとクリーンアップ
+    link.innerText = "."
+    link.style.opacity = "0"
+    document.body.appendChild(link)
+    
     setTimeout(() => {
         link.click()
         URL.revokeObjectURL(link.href)
-        fade(0)
-    })
+        document.body.removeChild(link)
+        fade(0) // ロック解除
+    }, 10)
 })
+
 // download.addEventListener("click", event => {
 //	if(locked){
 //		return
