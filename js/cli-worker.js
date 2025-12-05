@@ -2,6 +2,8 @@
 
 var wasmDir = "https://vgmstream.org/web/"
 
+// messageEvent 関数の修正部分 (既存の switch 文を置き換える)
+
 async function messageEvent(data){
 	var input = data.content
 	var output
@@ -25,6 +27,10 @@ async function messageEvent(data){
 				break
 			case "deleteFile":
 				output = deleteFile(...input)
+				break
+			// ⭐ 新しいコマンドを追加
+			case "extractAllStreams": 
+				output = await extractAllStreams(...input)
 				break
 			default:
 				error = new Error("Unknown message subject")
@@ -224,4 +230,58 @@ var Module = {
 	locateFile: name => wasmUri(name)
 }
 addEventListener("message", event => messageEvent(event.data))
+// ----------------------------------------------------
+// ⭐ ファイル末尾に追加する新しい関数
+// ----------------------------------------------------
+
+async function extractAllStreams(dir, inputFilename){
+	// 一時ディレクトリを作成
+	var tempDir = "/temp_out"
+	FS.mkdir(tempDir)
+	
+	// vgmstreamを実行し、全てのストリームを tempDir 内に出力させる
+	// -m (multi-file output) -o "%o/%n#%s.wav" (出力フォーマット)
+	var output = setupDir(dir, () => vgmstream(
+		"-m", 
+		"-o", tempDir + "/%n#%s.wav", 
+		"-i", inputFilename
+	))
+
+	if(output.error){
+		// エラー処理
+		var error = output.error
+		error.stdout = output.stdout
+		error.stderr = output.stderr
+		// テンポラリディレクトリをクリーンアップ
+		FS.rmdir(tempDir)
+		throw error
+	}
+	
+	var allStreamFiles = []
+	
+	// tempDir内の全てのファイル名を取得
+	var filesInTemp = FS.readdir(tempDir)
+	
+	for(var i = 0; i < filesInTemp.length; i++){
+		var name = filesInTemp[i]
+		// . や .. 以外のファイル（抽出されたWAVファイル）のみを処理
+		if(name !== "." && name !== ".."){
+			var fullPath = tempDir + "/" + name
+			var wavData = readFile(fullPath)
+			if(wavData){
+				allStreamFiles.push({
+					name: name, // 例: on_memory_bank_bundled#0.wav
+					buffer: wavData.buffer // ArrayBuffer形式で返す
+				})
+			}
+			deleteFile(fullPath) // 抽出後、ファイルを削除してクリーンアップ
+		}
+	}
+	
+	// テンポラリディレクトリをクリーンアップ
+	FS.rmdir(tempDir)
+	
+	// 抽出された全てのストリーム（ArrayBufferと名前の配列）を返す
+	return allStreamFiles
+}
 loadCli()
