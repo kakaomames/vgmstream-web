@@ -780,25 +780,66 @@ selectdirbtn.addEventListener("click", async event => {
 		browsedir.click()
 	}
 })
-download.addEventListener("click", event => {
-	if(locked){
-		return
-	}
-	var link = document.createElement("a")
-	link.href = audio.src
-	if("download" in HTMLAnchorElement.prototype){
-		link.download = dlfilename
-	}else{
-		link.target = "_blank"
-	}
-	link.innerText = "."
-	link.style.opacity = "0"
-	document.body.appendChild(link)
-	setTimeout(() => {
-		link.click()
-		document.body.removeChild(link)
-	})
+
+download.addEventListener("click", async event => {
+    if(locked){ return }
+    
+    // 1. 全ストリームデータを取得するワーカー関数を呼び出す
+    fade(1, true) // モーダルを表示
+    
+    try {
+        // vgmstream-webの内部関数を再利用し、全データを取得（仮の関数名: getAllStreams）
+        // ※この部分のコードはcli-worker.jsの内部構造に依存するため、仮です
+        var allStreams = await cliWorker.send("getAllStreams", dlfilename) 
+    } catch (e) {
+        fade(0)
+        return workerError(e)
+    }
+
+    // 2. JSZipのインスタンスを作成
+    var zip = new JSZip()
+    
+    // 3. 全ストリームをZIPに追加
+    allStreams.forEach((streamData, index) => {
+        // streamDataは { name: "se_ui_open", buffer: ArrayBuffer } の形式を想定
+        var filename = streamData.name ? `${streamData.name}.wav` : `stream_${index}.wav`
+        zip.file(filename, streamData.buffer)
+    })
+    
+    // 4. ZIPファイルを生成
+    var content = await zip.generateAsync({ type: "blob" })
+    
+    // 5. ダウンロードを実行
+    var link = document.createElement("a")
+    link.href = URL.createObjectURL(content)
+    link.download = filenamebox.innerText.replace(/\./g, '_') + ".zip" // ファイル名例: on_memory_bank_bundled.zip
+    
+    // ... (ダウンロードの実行とクリーンアップ)
+    setTimeout(() => {
+        link.click()
+        URL.revokeObjectURL(link.href)
+        fade(0)
+    })
 })
+// download.addEventListener("click", event => {
+//	if(locked){
+//		return
+//	}
+//	var link = document.createElement("a")
+//	link.href = audio.src
+//	if("download" in HTMLAnchorElement.prototype){
+//		link.download = dlfilename
+//	}else{
+//		link.target = "_blank"
+//   }
+//	link.innerText = "."
+//	link.style.opacity = "0"
+//	document.body.appendChild(link)
+//	setTimeout(() => {
+//		link.click()
+//		document.body.removeChild(link)
+//	})
+//})
 logdropdown.addEventListener("mousedown", event => {
 	event.preventDefault()
 })
