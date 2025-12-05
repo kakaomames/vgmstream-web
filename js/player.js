@@ -131,7 +131,8 @@ class WorkerWrapper{
 	}
 }
 if(wasmSupported){
-	var cliWorker = new WorkerWrapper(jsDir + "cli-worker.js")
+	var cliWorker = new WorkerWrapper(jsDir + "cli-worker2.js")
+	// hbyvyghvっyjbhfっっhfgふ
 	var hashParams = new URL("a:?" + location.hash.slice(1)).searchParams
 	if(hashParams.has("share-target")){
 		checkShareTarget()
