@@ -233,12 +233,14 @@ addEventListener("message", event => messageEvent(event.data))
 // ----------------------------------------------------
 // ⭐ ファイル末尾に追加する新しい関数
 // ----------------------------------------------------
+console.log("[Gemini] この下が追加した関数")
 
 async function extractAllStreams(dir, inputFilename){
 	// 一時ディレクトリを作成
 	var tempDir = "/temp_out"
 	FS.mkdir(tempDir)
 	
+	console.log("[Gemini] Attempting vgmstream -m execution...")
 	// vgmstreamを実行し、全てのストリームを tempDir 内に出力させる
 	// -m (multi-file output) -o "%o/%n#%s.wav" (出力フォーマット)
 	var output = setupDir(dir, () => vgmstream(
@@ -246,6 +248,7 @@ async function extractAllStreams(dir, inputFilename){
 		"-o", tempDir + "/%n#%s.wav", 
 		"-i", inputFilename
 	))
+	console.log("[Gemini] vgmstream stderr:", output.stderr)
 
 	if(output.error){
 		// エラー処理
@@ -261,6 +264,8 @@ async function extractAllStreams(dir, inputFilename){
 	
 	// tempDir内の全てのファイル名を取得
 	var filesInTemp = FS.readdir(tempDir)
+	
+	console.log(`[Gemini] Files found in tempDir: ${filesInTemp.length - 2}`) // . と .. を除く
 	
 	for(var i = 0; i < filesInTemp.length; i++){
 		var name = filesInTemp[i]
@@ -281,6 +286,7 @@ async function extractAllStreams(dir, inputFilename){
 	// テンポラリディレクトリをクリーンアップ
 	FS.rmdir(tempDir)
 	
+	console.log(`[Gemini] Extracted ${allStreamFiles.length} streams successfully.`)
 	// 抽出された全てのストリーム（ArrayBufferと名前の配列）を返す
 	return allStreamFiles
 }
