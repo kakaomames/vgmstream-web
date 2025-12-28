@@ -131,8 +131,7 @@ class WorkerWrapper{
 	}
 }
 if(wasmSupported){
-	var cliWorker = new WorkerWrapper(jsDir + "cli-worker2.js")
-	// hbyvyghvっyjbhfっっhfgふ
+	var cliWorker = new WorkerWrapper(jsDir + "cli-worker.js")
 	var hashParams = new URL("a:?" + location.hash.slice(1)).searchParams
 	if(hashParams.has("share-target")){
 		checkShareTarget()
@@ -781,84 +780,25 @@ selectdirbtn.addEventListener("click", async event => {
 		browsedir.click()
 	}
 })
-
-download.addEventListener("click", async event => {
-    if(locked){
-        return
-    }
-    
-    // 現在再生中のファイル名を取得
-    // on_memory_bank_bundled.ckb のような入力ファイル名です
-    var currentInputFilename = filenamebox.innerText 
-    
-    // ファイルシステムは worker 側で管理されているため、 files 配列全体は不要
-    // convertDir の引数 dir (files) が必要なので、ここはダミーで空配列を渡す
-    var files = [] 
-
-    fade(1, true) // モーダルを表示してロック
-    
-    try {
-        // 新しいコマンドを呼び出し、全ストリームの ArrayBuffer の配列を取得
-        // cliWorker.send("extractAllStreams", files, inputFilename)
-        var allStreams = await cliWorker.send("extractAllStreams", files, currentInputFilename)
-    } catch (e) {
-        fade(0)
-        return workerError(e)
-    }
-
-    // JSZipのインスタンスを作成
-    var zip = new JSZip()
-    
-    // 全ストリームをZIPに追加
-    allStreams.forEach(stream => {
-        // stream.name 例: on_memory_bank_bundled#0.wav
-        // stream.buffer は ArrayBuffer
-        zip.file(stream.name, stream.buffer)
-    })
-    
-    // ZIPファイルを非同期で生成
-    var content = await zip.generateAsync({ type: "blob" })
-    
-    // ダウンロードを実行
-    var link = document.createElement("a")
-    // ファイル名から拡張子を削除して .zip を付与
-    var zipFilename = currentInputFilename.replace(/\.[^/.]+$/, "") + ".zip" 
-    
-    link.href = URL.createObjectURL(content)
-    link.download = zipFilename
-    
-    // ダウンロードのトリガーとクリーンアップ
-    link.innerText = "."
-    link.style.opacity = "0"
-    document.body.appendChild(link)
-    
-    setTimeout(() => {
-        link.click()
-        URL.revokeObjectURL(link.href)
-        document.body.removeChild(link)
-        fade(0) // ロック解除
-    }, 10)
+download.addEventListener("click", event => {
+	if(locked){
+		return
+	}
+	var link = document.createElement("a")
+	link.href = audio.src
+	if("download" in HTMLAnchorElement.prototype){
+		link.download = dlfilename
+	}else{
+		link.target = "_blank"
+	}
+	link.innerText = "."
+	link.style.opacity = "0"
+	document.body.appendChild(link)
+	setTimeout(() => {
+		link.click()
+		document.body.removeChild(link)
+	})
 })
-
-// download.addEventListener("click", event => {
-//	if(locked){
-//		return
-//	}
-//	var link = document.createElement("a")
-//	link.href = audio.src
-//	if("download" in HTMLAnchorElement.prototype){
-//		link.download = dlfilename
-//	}else{
-//		link.target = "_blank"
-//   }
-//	link.innerText = "."
-//	link.style.opacity = "0"
-//	document.body.appendChild(link)
-//	setTimeout(() => {
-//		link.click()
-//		document.body.removeChild(link)
-//	})
-//})
 logdropdown.addEventListener("mousedown", event => {
 	event.preventDefault()
 })
