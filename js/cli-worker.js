@@ -70,7 +70,7 @@ async function convertFile(data, inputFilename, arrayBuffer){
 	var outputFilename = "/" + Math.random() + "output.wav"
 	
 	writeFile(inputFilename, data)
-	var output = vgmstream("-I", "-o", outputFilename, "-i", inputFilename)
+	var output = vgmstream("-I", "-2", "-o", outputFilename, "-i", inputFilename)
 	deleteFile(inputFilename)
 	
 	return getOutput(output, inputFilename, outputFilename, arrayBuffer)
