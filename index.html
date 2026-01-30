@@ -1,17 +1,150 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<meta charset="utf-8">
-<title>vgmstream-web Player</title>
-<meta name="viewport" content="width=device-width">
-<meta name="description" content="Listen to streamed video game audio files in your browser">
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#5b9d2f">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="img/favicon.png" type="image/png">
-<link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <meta name="description" content="Gemini programming隊 - vgmstream解析ミッション">
+    <meta property="og:image" content="https://kakaomames.github.io/rei/logo.png">
+    <title>vgmstream Master | Gemini programming隊 🛰️</title>
+    <script src="js/soundbuffer.js"></script>
+    <script src="js/custom-audio.js"></script>
+    <script src="js/player.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1a1a1a; color: #eee; text-align: center; padding: 20px; }
+        .panel { background: #252525; border: 2px solid #5b9d2f; border-radius: 12px; padding: 25px; display: inline-block; width: 90%; max-width: 700px; text-align: left; }
+        .logo { width: 50px; vertical-align: middle; }
+        
+        /* あの緑の光るバーをここでも採用！ */
+        .progress-container { width: 100%; height: 20px; background: #333; border: 1px solid #555; overflow: hidden; margin: 15px 0; }
+        .progress-bar { 
+            height: 100%; width: 0%; 
+            background: linear-gradient(to bottom, #b7e8b7 0%, #5b9d2f 50%, #3e6d1f 100%);
+            position: relative; transition: width 0.3s;
+        }
+        .progress-bar::after {
+            content: ""; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+            background-size: 200px 100%; animation: moveLight 2s infinite linear;
+        }
+        @keyframes moveLight { from { background-position: -200px 0; } to { background-position: 100% 0; } }
+
+        .btn { background: #5b9d2f; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        #log { font-size: 11px; background: #000; padding: 10px; height: 80px; overflow-y: auto; color: #0f0; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="panel">
+        <h2><img src="https://kakaomames.github.io/rei/logo.png" class="logo"> vgmstream 解析ミッション</h2>
+        <p style="font-size: 0.8em; color: #888;">fsb, wem, adx 等の特殊フォーマットを解読・統合します。</p>
+
+        <input type="file" id="browse" multiple>
+        
+        <div class="progress-container">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+
+        <div id="statusText" style="font-size: 0.9em;">待機中...</div>
+        <div id="log"></div>
+
+        <hr style="border: 0.5px solid #444; margin: 20px 0;">
+        
+        <button id="startBtn" class="btn" onclick="startVgmstreamProcess()">解読・統合開始 🚀</button>
+        <custom-audio id="audio" controls style="width: 100%; margin-top: 15px;"></custom-audio>
+    </div>
+
+    <script>
+        const log = (msg) => {
+            const div = document.getElementById('log');
+            div.innerHTML += `> ${msg}<br>`;
+            div.scrollTop = div.scrollHeight;
+            document.getElementById('statusText').innerText = msg;
+        };
+
+        const updateBar = (percent) => {
+            document.getElementById('progressBar').style.width = `${percent * 100}%`;
+        };
+
+        async function startVgmstreamProcess() {
+            const input = document.getElementById('browse');
+            if (input.files.length === 0) return alert("ファイルを選んで！隊員！");
+            
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let allBuffers = [];
+            const files = Array.from(input.files);
+
+            log("🚀 ミッション開始：Workerを呼び出しています...");
+
+            for (let fIdx = 0; fIdx < files.length; fIdx++) {
+                const file = files[fIdx];
+                log(`📄 解析中: ${file.name}`);
+
+                const arrayBuffer = await file.arrayBuffer();
+                await cliWorker.send("writeFile", file.name, new Uint8Array(arrayBuffer));
+
+                // ストリーム数を確認 (-m)
+                const info = await cliWorker.send("vgmstream", "-m", "-i", file.name);
+                const streamMatch = info.stdout.match(/Stream index: \d+ \/ (\d+)/);
+                let totalStreams = streamMatch ? parseInt(streamMatch[1]) : 1;
+
+                log(`✅ ${totalStreams} 個の音声を検出。抽出中...`);
+
+                for (let i = 1; i <= totalStreams; i++) {
+                    const outName = `temp_${fIdx}_${i}.wav`;
+                    // 1つずつ救出
+                    await cliWorker.send("vgmstream", "-s", i.toString(), "-i", file.name, "-o", outName);
+                    
+                    const wavData = await cliWorker.send("readFile", outName);
+                    if (wavData) {
+                        const buffer = await audioCtx.decodeAudioData(wavData.buffer);
+                        allBuffers.push(buffer);
+                    }
+                    await cliWorker.send("deleteFile", outName);
+                    
+                    // 進捗計算
+                    const progress = (fIdx / files.length) + ((i / totalStreams) * (1 / files.length));
+                    updateBar(progress);
+                }
+                await cliWorker.send("deleteFile", file.name);
+            }
+
+            // 連結処理
+            if (allBuffers.length > 0) {
+                log("🔗 全てのデータを連結して統合WAVを生成中...");
+                const finalBuffer = mergeBuffers(audioCtx, allBuffers);
+                const wavBlob = bufferToWav(finalBuffer); // 前に作った関数をここに入れる
+                
+                const url = URL.createObjectURL(wavBlob);
+                document.getElementById('audio').src = url;
+
+                // ダウンロード
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `vgmstream_merged.wav`;
+                a.target = "_blank";
+                a.click();
+            }
+            updateBar(1);
+            log("🏁 ミッション完了！");
+        }
+
+        function mergeBuffers(ctx, buffers) {
+            let totalLen = buffers.reduce((a, b) => a + b.length, 0);
+            let final = ctx.createBuffer(buffers[0].numberOfChannels, totalLen, buffers[0].sampleRate);
+            for (let ch = 0; ch < final.numberOfChannels; ch++) {
+                let offset = 0;
+                for (const b of buffers) {
+                    final.getChannelData(ch).set(b.getChannelData(ch), offset);
+                    offset += b.length;
+                }
+            }
+            return final;
+        }
+
+        // ※ bufferToWav関数（前述のもの）をここに追加してください
+    </script>
+</body>
+</html><!--
 <link rel="stylesheet" href="css/player.css">
 <link rel="stylesheet" href="css/player-dark.css" media="(prefers-color-scheme: dark)">
 <script src="js/dark-toggle.js"></script>
@@ -60,3 +193,4 @@
 <script src="js/player.js"></script>
 </body>
 </html>
+-->
