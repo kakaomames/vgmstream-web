@@ -52,7 +52,9 @@
         <button id="startBtn" class="btn" onclick="startVgmstreamProcess()">解読・統合開始 🚀</button>
         <custom-audio id="audio" controls style="width: 100%; margin-top: 15px;"></custom-audio>
     </div>
-
+<script src="js/soundbuffer.js"></script>
+<script src="js/custom-audio.js"></script>
+<script src="js/player.js"></script>
     <script>
         const log = (msg) => {
             const div = document.getElementById('log');
@@ -144,7 +146,17 @@
         // ※ bufferToWav関数（前述のもの）をここに追加してください
     </script>
 </body>
-</html><!--
+</html>
+
+
+
+
+
+
+
+
+
+<!--
 <link rel="stylesheet" href="css/player.css">
 <link rel="stylesheet" href="css/player-dark.css" media="(prefers-color-scheme: dark)">
 <script src="js/dark-toggle.js"></script>
